@@ -39,43 +39,42 @@ def main():
 
 
 
-    public=nexus + "/content/groups/public/"
-
-    split=artifactId.split(":");
-
-    groupId=split[0]
-    artifactId=split[1]
-    version=split[2]
+    public = nexus + "/content/groups/public/"
+    split = artifactId.split(":");
+    groupId    = split[0]
+    artifactId = split[1]
+    version    = split[2]
     if len(split) >= 4:
-        classifier=split[3]
+        classifier = "&c=" + split[3]
     else:
-        classifier=""
+        classifier = ""
 
 
     if  "$classifier" == "":
-        postfix=""
+        postfix = ""
     else:
-        postfix="-$classifier"
+        postfix = "-" + classifier
 
-    artifactFileName="$artifactId-$version$postfix.$extension"
-    artifactUrl="$public/$groupdir/$artifactid/$version/$artifactFileName"
+    artifactFileName = artifactId + "-" + version + postfix + extension
     if "SNAPSHOT" in version:
-        repo="snapshots"
+        repo = "snapshots"
     else:
-        repo="releases"
+        repo = "releases"
 
-
-    artifactDownload=public + "service/local/artifact/maven/redirect?r=" + repo + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + "&c=" + classifier
-    get(artifactDownload, artifactId + "." + extension)
+    artifactDownload = nexus + "/service/local/artifact/maven/redirect?r=" + repo + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + classifier
+    dest = artifactId + "-" + version + "." + extension
+    get(artifactDownload, dest)
 
     print json.dumps({
         "artifactId" : artifactId,
         "nexus": nexus,
-        "artifactDownload": artifactDownload
+        "artifactDownload": artifactDownload,
+        "dest": dest
     })
 
 
 def get(url, dest):
+    #print "retrieving " + url
     respon = urllib.urlretrieve(url,  dest)
 
 
