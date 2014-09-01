@@ -13,12 +13,12 @@ EXAMPLES='''
 '''
 
 
-import datetime
 import sys
 import json
 import os
 import shlex
 import urllib
+import urllib2
 
 
 def main():
@@ -27,6 +27,7 @@ def main():
     arguments = shlex.split(args_data)
 
     extension = "war"
+    repo = ""
     for arg in arguments:
         if "=" in arg:
             (key, value) = arg.split("=")
@@ -36,14 +37,15 @@ def main():
                 nexus = value
             if key == "extension":
                 extension = value
+            if key == "repository":
+                repo = value
 
 
 
     public = nexus + "/content/groups/public/"
-    split = artifactId.split(":");
-    groupId    = split[0]
-    artifactId = split[1]
-    version    = split[2]
+    split =  artifactId.split(":")
+    (groupId, artifactId, version)  = split[0:3]
+
     if len(split) >= 4:
         classifier = "&c=" + split[3]
     else:
@@ -56,26 +58,37 @@ def main():
         postfix = "-" + classifier
 
     artifactFileName = artifactId + "-" + version + postfix + extension
-    if "SNAPSHOT" in version:
-        repo = "snapshots"
-    else:
-        repo = "releases"
+    if repo == "":
+        if "SNAPSHOT" in version:
+            repo = "snapshots"
+        else:
+            repo = "releases"
 
     artifactDownload = nexus + "/service/local/artifact/maven/redirect?r=" + repo + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + classifier
-    dest = artifactId + "-" + version + "." + extension
-    get(artifactDownload, dest)
+    if not os.path.exists("nexus"):
+        os.mkdir("nexus")
+    dest = "nexus/" + artifactId + "-" + version + "." + extension
+    resp = get(artifactDownload, dest)
 
     print json.dumps({
         "artifactId" : artifactId,
         "nexus": nexus,
         "artifactDownload": artifactDownload,
-        "dest": dest
+        "dest": dest,
+        "repository": repo,
+        "response":  {"code": resp['code'], "message": resp['msg'] }
     })
 
 
 def get(url, dest):
-    #print "retrieving " + url
-    respon = urllib.urlretrieve(url,  dest)
+    try:
+        #print "retrieving " + url
+        (filename, headers) = urllib.urlretrieve(url,  dest)
+        return {"code": 200, "msg": "OK"}
+    except urllib2.URLError, e:
+        if not hasattr(e, "code"):
+            raise
+        return e
 
 
 
