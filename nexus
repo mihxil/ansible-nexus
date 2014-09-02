@@ -3,7 +3,7 @@
 DOCUMENTATION='''
 ---
 module: nexus
-short_description: Download and installs an artifact from nexus
+short_description: Download and installs an artifact from nexus. See https://github.com/mihxil/ansible-nexus
 author: Michiel Meeuwissen
 '''
 
