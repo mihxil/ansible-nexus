@@ -17,7 +17,11 @@ import sys
 import json
 import os
 import shlex
-import urllib
+import urllib2
+from datetime import datetime
+import time
+from wsgiref.handlers import format_date_time
+
 
 
 def main():
@@ -28,6 +32,7 @@ def main():
     # default values
     extension = "war"
     repo = ""
+    destdir = "downloaded_artifacts"
     for arg in arguments:
         if "=" in arg:
             (key, value) = arg.split("=")
@@ -63,9 +68,9 @@ def main():
             repo = "releases"
 
     artifactDownload = nexus + "/service/local/artifact/maven/redirect?r=" + repo + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + classifier
-    if not os.path.exists("downloaded_artifacts"):
-        os.mkdir("downloaded_artifacts")
-    dest = "downloaded_artifacts/" + artifactId + "-" + version + "." + extension
+    if not os.path.exists(destdir):
+        os.mkdir(destdir)
+    dest = destdir + "/" + artifactId + "-" + version + "." + extension
     resp = get(artifactDownload, dest)
 
     print json.dumps({
@@ -74,20 +79,29 @@ def main():
         "artifactDownload": artifactDownload,
         "dest": dest,
         "repository": repo,
-        "response":  {"code": resp['code'], "message": resp['msg'] }
+        "changes": resp['changes'],
+        "response":  {"code": resp['code']}
     })
 
 
 def get(url, dest):
     try:
-        #print "retrieving " + url
-        (filename, headers) = urllib.urlretrieve(url,  dest)
-        return {"code": 200, "msg": "OK"}
+        headers = {}
+        if os.path.isfile(dest):
+            headers['IF-Modified-Since'] = format_date_time(time.mktime(datetime.fromtimestamp(os.path.getmtime(dest)).timetuple()))
+
+        request = urllib2.Request(url, None, headers)
+        response = urllib2.urlopen(request)
+        if response.code == 200:
+            handle  = open(dest,'wb')
+            handle.write(response.read())
+            handle.close()
+        return {"code": response.code, "changes": response.code == 200}
     except Exception as e:
-        if not hasattr(e, "code"):
-            return {"code": 500, "msg": e.args}
-        return e
+        if hasattr(e, "code"):
+            return {"code": e.code, "changes": e.code == 200}
+        raise e
 
 
-
-main()
+if __name__ == "__main__":
+    main()
