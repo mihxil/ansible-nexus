@@ -53,9 +53,12 @@ from wsgiref.handlers import format_date_time
 from ansible.module_utils.basic import *
 
 def loadArtifact(url, dest, http_user, http_pass, force):
+
+    result = dict(url = url, http_user = http_user, force = force)
+
     try:
-        
         headers = {}
+
         # Support if modified header if not using 'force' flag to always download artifacts
         if os.path.isfile(dest) and not force:
             headers['IF-Modified-Since'] = format_date_time(time.mktime(
@@ -73,10 +76,18 @@ def loadArtifact(url, dest, http_user, http_pass, force):
             handle.write(response.read())
             handle.close()
 
-        return { "failed": False, "code": response.code, "msg": "OK", "changed": True }
+        # Everything went ok, set result set accordingly
+        result['failed'] = False
+        result['code'] = response.code
+        result['msg'] = "OK"
+        result['changed'] = True
+
+        return result
 
     except Exception as e:
-        result = dict(failed = True, changed = False)
+        # In case of error, let ansible stop the playbook        
+        result['failed'] = True
+        result['changed'] = False
         if hasattr(e, "code"):
             result['code'] = e.code
             if hasattr(e, "reason"):
@@ -105,7 +116,7 @@ def main():
             http_user   = dict(required = False),
             http_pass   = dict(required = False)
         ),
-        supports_check_mode = True
+        supports_check_mode = False
     )
 
     nexus = module.params['nexus']
@@ -119,32 +130,35 @@ def main():
 
     # Prepare strings and urls before the nexus call
     split =  artifactId.split(":")
-    (groupId, artifactId, version)  = split[0:3]
+    (groupId, artifactId, version) = split[0:3]
 
-    classifier = "&c=" + split[3] if len(split) >= 4 else ""
+    classifier = split[3] if len(split) >= 4 else ""
+
+    urlAppendClassifier = "&c=" + classifier if classifier else ""
     postfix = "-" + classifier if classifier else ""
 
-    artifactFileName = artifactId + "-" + version + postfix + extension
+    filename = artifactId + "-" + version + postfix + "." + extension
     if repository == "":
         repository = "snapshots" if "SNAPSHOT" in version else "releases"
 
-    url = nexus + "/service/local/artifact/maven/redirect?r=" + repository + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + classifier
+    url = nexus + "/service/local/artifact/maven/redirect?r=" + repository + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + urlAppendClassifier
     
     if not os.path.exists(destdir):
         os.mkdir(destdir)
     
-    dest = destdir + "/" + artifactId + "-" + version + "." + extension
-    
+    dest = destdir + "/" + filename
+
     # Try to load artifact from nexus
     result = loadArtifact(url, dest, http_user, http_pass, force)
 
     if result['failed']:
         module.fail_json(**result)
 
-    print module.exit_json(
+    module.exit_json(
         artifactId = artifactId,
         nexus = nexus,
         url = url,
+        filename = filename,
         dest = dest,
         repository = repository,
         changed = result['changed'],
