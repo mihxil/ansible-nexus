@@ -88,6 +88,7 @@ def loadArtifact(url, dest, http_user, http_pass, force):
         # In case of error, let ansible stop the playbook        
         result['failed'] = True
         result['changed'] = False
+        result['msg'] = "Unknown error"
         if hasattr(e, "code"):
             result['code'] = e.code
             if hasattr(e, "reason"):
@@ -152,17 +153,21 @@ def main():
     result = loadArtifact(url, dest, http_user, http_pass, force)
 
     if result['failed']:
-        module.fail_json(**result)
+        module.fail_json(
+            artifactId = artifactId,
+            nexus = nexus,
+            url = url,
+            filename = filename,
+            dest = dest,
+            repository = repository,
+            changed = result['changed'],
+            msg = result['msg'],
+            result = result
+        )
 
     module.exit_json(
-        artifactId = artifactId,
-        nexus = nexus,
-        url = url,
-        filename = filename,
         dest = dest,
-        repository = repository,
-        changed = result['changed'],
-        result = result
+        changed = result['changed']
     )
 
 main()
