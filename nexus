@@ -111,6 +111,7 @@ def main():
             nexus       = dict(required = True),
             repository  = dict(required = False, default = "public"),
             destdir     = dict(required = False, default = "/tmp/downloaded_artifacts"),
+            filename    = dict(required = False, default = None),
             artifactId  = dict(required = True),
             extension   = dict(required = False, default = "war"),
             force       = dict(required = False, default = True, choices = BOOLEANS),
@@ -124,6 +125,7 @@ def main():
     repository = module.params['repository']
     destdir = module.params['destdir']
     artifactId = module.params['artifactId']
+    filename = module.params['filename']
     extension = module.params['extension']
     force = module.boolean(module.params['force'])
     http_user = module.params['http_user']
@@ -138,7 +140,10 @@ def main():
     urlAppendClassifier = "&c=" + classifier if classifier else ""
     postfix = "-" + classifier if classifier else ""
 
-    filename = artifactId + "-" + version + postfix + "." + extension
+    # Create generic filename if filename is not set
+    if filename == None:
+        filename = artifactId + "-" + version + postfix + "." + extension
+
     if repository == "":
         repository = "snapshots" if "SNAPSHOT" in version else "releases"
 
@@ -167,6 +172,8 @@ def main():
 
     module.exit_json(
         dest = dest,
+        filename = filename,
+        artifactId = artifactId,
         changed = result['changed']
     )
 
