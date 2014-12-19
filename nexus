@@ -4,7 +4,41 @@ DOCUMENTATION='''
 ---
 module: nexus
 short_description: Download and installs an artifact from nexus. See https://github.com/mihxil/ansible-nexus
-author: Michiel Meeuwissen
+author: Michiel Meeuwissen, Marc Bosserhoff
+options:
+    nexus:
+        required: true
+        description:
+            - Base url of the nexus
+    repository:
+        required: false
+        description:
+            - Optional the used repository (Defaults to 'public')
+    destdir:
+        required: false
+        description:
+            - The destination dir of the downloaded artifacts (Defaults to '/tmp/downloaded_artifacts')
+    artifactId:
+        required:: true
+        description:
+            - The artifact to download. The format is separated by ':' an will be connected like so:
+              groupId:artifactId:version
+    extension:
+        required: false
+        description:
+            - The artifact extension (Defaults to 'war')
+    force:
+        required: false
+        description:
+            - Forces the download of the artifacts if they are present in the target destination
+    http_user:
+        required: false
+        description:
+            - If the nexus need a basic authentication, the user name can be provided here
+    http_pass:
+        required: false
+        description:
+            - If the nexus need a basic authentication, the password can be provided here
 '''
 
 EXAMPLES='''
@@ -12,96 +46,135 @@ EXAMPLES='''
   nexus: nexus=http://nexus.vpro.nl artifactId=nl.vpro.stats:stats-backend:0.3-SNAPSHOT extension=jar
 '''
 
-
-import sys
-import json
-import os
-import shlex
 import urllib2
+import base64
 from datetime import datetime
-import time
 from wsgiref.handlers import format_date_time
+from ansible.module_utils.basic import *
 
+def loadArtifact(url, dest, http_user, http_pass, force):
 
+    result = dict(url = url, http_user = http_user, force = force)
 
-def main():
-    args_file = sys.argv[1]
-    args_data = file(args_file).read()
-    arguments = shlex.split(args_data)
-
-    # default values
-    extension = "war"
-    repo = ""
-    destdir = "downloaded_artifacts"
-    for arg in arguments:
-        if "=" in arg:
-            (key, value) = arg.split("=")
-            if key == "artifactId":
-                artifactId = value
-            if key == "nexus":
-                nexus = value
-            if key == "extension":
-                extension = value
-            if key == "repository":
-                repo = value
-
-
-    split =  artifactId.split(":")
-    (groupId, artifactId, version)  = split[0:3]
-
-    if len(split) >= 4:
-        classifier = "&c=" + split[3]
-    else:
-        classifier = ""
-
-
-    if  "$classifier" == "":
-        postfix = ""
-    else:
-        postfix = "-" + classifier
-
-    artifactFileName = artifactId + "-" + version + postfix + extension
-    if repo == "":
-        if "SNAPSHOT" in version:
-            repo = "snapshots"
-        else:
-            repo = "releases"
-
-    artifactDownload = nexus + "/service/local/artifact/maven/redirect?r=" + repo + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + classifier
-    if not os.path.exists(destdir):
-        os.mkdir(destdir)
-    dest = destdir + "/" + artifactId + "-" + version + "." + extension
-    resp = get(artifactDownload, dest)
-
-    print json.dumps({
-        "artifactId" : artifactId,
-        "nexus": nexus,
-        "artifactDownload": artifactDownload,
-        "dest": dest,
-        "repository": repo,
-        "changes": resp['changes'],
-        "response":  {"code": resp['code']}
-    })
-
-
-def get(url, dest):
     try:
         headers = {}
-        if os.path.isfile(dest):
-            headers['IF-Modified-Since'] = format_date_time(time.mktime(datetime.fromtimestamp(os.path.getmtime(dest)).timetuple()))
+
+        # Support if modified header if not using 'force' flag to always download artifacts
+        if os.path.isfile(dest) and not force:
+            headers['IF-Modified-Since'] = format_date_time(time.mktime(
+                        datetime.fromtimestamp(os.path.getmtime(dest)
+                    ).timetuple()))
+
+        if http_user and http_pass:
+            headers['Authorization'] = "Basic %s" % base64.encodestring('%s:%s' % (http_user, http_pass)).replace('\n', '')
 
         request = urllib2.Request(url, None, headers)
         response = urllib2.urlopen(request)
+
         if response.code == 200:
-            handle  = open(dest,'wb')
+            handle = open(dest,'wb')
             handle.write(response.read())
             handle.close()
-        return {"code": response.code, "changes": response.code == 200}
+
+        # Everything went ok, set result set accordingly
+        result['failed'] = False
+        result['code'] = response.code
+        result['msg'] = "OK"
+        result['changed'] = True
+
+        return result
+
     except Exception as e:
+        # In case of error, let ansible stop the playbook        
+        result['failed'] = True
+        result['changed'] = False
+        result['msg'] = "Unknown error"
         if hasattr(e, "code"):
-            return {"code": e.code, "changes": e.code == 200}
+            result['code'] = e.code
+            if hasattr(e, "reason"):
+                result['msg'] = e.reason;
+            else:
+                result['msg'] = "The server couldn\'t fulfill the request.";
+
+            # In case of 304 the resource is still there in place and not updated
+            if e.code == 304:
+                result['failed'] = False;
+
+            return result;
+
         raise e
 
+def main():
 
-if __name__ == "__main__":
-    main()
+    module = AnsibleModule(
+        argument_spec = dict(
+            nexus       = dict(required = True),
+            repository  = dict(required = False, default = "public"),
+            destdir     = dict(required = False, default = "/tmp/downloaded_artifacts"),
+            filename    = dict(required = False, default = None),
+            artifactId  = dict(required = True),
+            extension   = dict(required = False, default = "war"),
+            force       = dict(required = False, default = True, choices = BOOLEANS),
+            http_user   = dict(required = False),
+            http_pass   = dict(required = False)
+        ),
+        supports_check_mode = False
+    )
+
+    nexus = module.params['nexus']
+    repository = module.params['repository']
+    destdir = module.params['destdir']
+    artifactId = module.params['artifactId']
+    filename = module.params['filename']
+    extension = module.params['extension']
+    force = module.boolean(module.params['force'])
+    http_user = module.params['http_user']
+    http_pass = module.params['http_pass']
+
+    # Prepare strings and urls before the nexus call
+    split =  artifactId.split(":")
+    (groupId, artifactId, version) = split[0:3]
+
+    classifier = split[3] if len(split) >= 4 else ""
+
+    urlAppendClassifier = "&c=" + classifier if classifier else ""
+    postfix = "-" + classifier if classifier else ""
+
+    # Create generic filename if filename is not set
+    if filename == None:
+        filename = artifactId + "-" + version + postfix + "." + extension
+
+    if repository == "":
+        repository = "snapshots" if "SNAPSHOT" in version else "releases"
+
+    url = nexus + "/service/local/artifact/maven/redirect?r=" + repository + "&g=" + groupId + "&a=" + artifactId + "&v=" + version + "&e=" + extension + urlAppendClassifier
+    
+    if not os.path.exists(destdir):
+        os.mkdir(destdir)
+    
+    dest = destdir + "/" + filename
+
+    # Try to load artifact from nexus
+    result = loadArtifact(url, dest, http_user, http_pass, force)
+
+    if result['failed']:
+        module.fail_json(
+            artifactId = artifactId,
+            nexus = nexus,
+            url = url,
+            filename = filename,
+            dest = dest,
+            repository = repository,
+            changed = result['changed'],
+            msg = result['msg'],
+            result = result
+        )
+
+    module.exit_json(
+        dest = dest,
+        filename = filename,
+        artifactId = artifactId,
+        changed = result['changed']
+    )
+
+main()
