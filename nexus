@@ -183,7 +183,7 @@ def main():
             filename=dict(required=False, default=None),
             artifactId=dict(required=True),
             extension=dict(required=False, default="war"),
-            force=dict(required=False, default=True, choices=BOOLEANS),
+            force=dict(required=False, default=False, choices=BOOLEANS),
             http_user=dict(required=False),
             http_pass=dict(required=False)
         ),
@@ -213,14 +213,19 @@ def main():
     if repository == "":
         repository = "snapshots" if "SNAPSHOT" in version else "releases"
 
+    original_version = version
+    group_version = version
     # Retrieve latest artifact API functionality is available only in
     # Artifactory Pro. We will have to use a workaround
-    if artifactory and re.search('[a-zA-Z]', version):
-
-        group_version = version
+    if artifactory and re.search('(release|latest|snapshot)', version.lower()):
         artifact_url = artifactory + "/" + repository + "/" + \
             groupId.replace(".", "/") + "/" + artifactId
-        version = get_version(artifact_url, version, http_user, http_pass)
+        version = get_version(
+            artifact_url,
+            original_version,
+            http_user,
+            http_pass
+        )
 
         if "failed" in version:
             module.fail_json(
@@ -231,7 +236,7 @@ def main():
                 result=version
             )
 
-        if any(x in version.lower() for x in ["latest", "release"]):
+        if any(x in original_version.lower() for x in ["latest", "release"]):
             group_version = version
 
     # Create generic filename if filename is not set
