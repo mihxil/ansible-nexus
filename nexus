@@ -65,12 +65,12 @@ EXAMPLES = '''
     extension=jar
 '''
 
+from ansible.module_utils.basic import *
 import urllib2
 import base64
 from datetime import datetime
 from wsgiref.handlers import format_date_time
 import xml.etree.ElementTree as ET
-from ansible.module_utils.basic import *
 
 
 def loadArtifact(url, dest, http_user, http_pass, force):
