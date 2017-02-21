@@ -183,7 +183,7 @@ def main():
             filename=dict(required=False, default=None),
             artifactId=dict(required=True),
             extension=dict(required=False, default="war"),
-            force=dict(required=False, default=False, choices=BOOLEANS),
+            force=dict(required=False, default=False, choices=BOOLEANS, type='bool'),
             http_user=dict(required=False),
             http_pass=dict(required=False)
         ),
