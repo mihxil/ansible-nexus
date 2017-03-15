@@ -17,18 +17,19 @@ Place 'nexus' in 'library/nexus' next to your ansible script.
         artifactId: abbot:costello:latest
         extension: jar
         repository: public
+```
 
 ## Download specific version using nexus
-
+```
   - name: Download costello 1.4.0
     nexus:
         nexus: https://oss.sonatype.org/
         artifactId: abbot:costello:1.4.0
         extension: jar
         repository: public
-
+```
 ## Download specific version using artifactory and credentials
-
+```
 - name: get statistics jar
   nexus:
     artifactory: http://artifactory.vpro.nl
