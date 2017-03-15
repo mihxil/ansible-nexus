@@ -93,6 +93,8 @@ Caveat is that once the basic auth defaults are set you must unset them with bla
 
 Currently only the timestamp of the file is used to validate whether to run the download task. This should be changed to leverage the md5 checking built into Nexus.
 
-This can be grabbed by making a HEAD request to the nexus for http://blar.com/service/local/repositories/<repository>/content/<groupid>/<artifact>/<version>/<artifact>-<version>.<type>.md5
-
+This can be grabbed by making a HEAD request to the nexus for :-
+```
+http://blar.com/service/local/repositories/<repository>/content/<groupid>/<artifact>/<version>/<artifact>-<version>.<type>.md5
+```
 
