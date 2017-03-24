@@ -5,7 +5,7 @@ DOCUMENTATION = '''
 module: nexus
 short_description: Download and install an artifact from storage.
     See https://github.com/mihxil/ansible-nexus
-author: Michiel Meeuwissen, Marc Bosserhoff, Rostyslav Fridman
+author: Michiel Meeuwissen, Marc Bosserhoff, Rostyslav Fridman, Giles Westwood
 options:
     nexus:
         required: true
@@ -129,7 +129,7 @@ def loadArtifact(url, dest, http_user, http_pass, force):
         raise e
 
 
-def get_version(url, version_to_find, http_user, http_pass):
+def get_version(nexus, artifactory, url, version_to_find, http_user, http_pass):
     result = dict(url=url, http_user=http_user)
     if "SNAPSHOT" in version_to_find:
         url = url + "/" + version_to_find
@@ -148,13 +148,19 @@ def get_version(url, version_to_find, http_user, http_pass):
 
         root = ET.fromstring(xml)
 
-        if any(x in version_to_find.lower() for x in ["latest", "release"]):
-            for version in root.findall('versioning'):
-                return version.find(version_to_find.lower()).text
+        if artifactory:
+            if any(x in version_to_find.lower() for x in ["latest", "release"]):
+                for version in root.findall('versioning'):
+                    return version.find(version_to_find.lower()).text
 
-        if "SNAPSHOT" in version_to_find:
-            return root.find(
-                'versioning/snapshotVersions/snapshotVersion/value').text
+            if "SNAPSHOT" in version_to_find:
+                return root.find(
+                    'versioning/snapshotVersions/snapshotVersion/value').text
+
+        # http://articles.javatalks.ru/articles/32
+        if nexus:
+          for latest in root.findall('./versioning/versions/version[last()]'):
+            return latest.text
 
     except Exception as e:
         # In case of error, let ansible stop the playbook
@@ -217,10 +223,18 @@ def main():
     group_version = version
     # Retrieve latest artifact API functionality is available only in
     # Artifactory Pro. We will have to use a workaround
-    if artifactory and re.search('(release|latest|snapshot)', version.lower()):
-        artifact_url = artifactory + "/" + repository + "/" + \
-            groupId.replace(".", "/") + "/" + artifactId
+    if re.search('(release|latest|snapshot)', version.lower()):
+        if artifactory:
+            artifact_url = artifactory + "/" + repository + "/" + \
+              groupId.replace(".", "/") + "/" + artifactId
+
+        if nexus:
+            artifact_url = nexus + "/service/local/repositories/" + repository + "/content/" + groupId.replace(".", "/") + "/" + artifactId
+
+
         version = get_version(
+            nexus,
+            artifactory,
             artifact_url,
             original_version,
             http_user,
