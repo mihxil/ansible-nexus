@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+ANSIBLE_METADATA = {'status': ['preview'],
+                    'supported_by': 'community',
+                    'metadata_version': '1.0'}
+
+
 DOCUMENTATION = '''
 ---
 module: nexus
