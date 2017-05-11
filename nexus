@@ -77,20 +77,20 @@ from datetime import datetime
 from wsgiref.handlers import format_date_time
 import xml.etree.ElementTree as ET
 
-
-def loadArtifact(url, dest, http_user, http_pass, force):
+# download an artifact from nexus or artifactory
+def loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different):
 
     result = dict(url=url, http_user=http_user, force=force)
 
     try:
         headers = {}
 
-        # Support if modified header if not using 'force' flag
+        # Support if modified header if not using 'force' flag or if md5 is detected as different from remote
         # to always download artifacts
-        if os.path.isfile(dest) and not force:
-            headers['IF-Modified-Since'] = \
-                format_date_time(time.mktime(datetime.fromtimestamp(
-                    os.path.getmtime(dest)).timetuple()))
+        if os.path.isfile(dest) and not force and not remote_md5_different:
+             headers['IF-Modified-Since'] = \
+                 format_date_time(time.mktime(datetime.fromtimestamp(
+                     os.path.getmtime(dest)).timetuple()))
 
         if http_user and http_pass:
             headers['Authorization'] = "Basic %s" % \
@@ -133,7 +133,43 @@ def loadArtifact(url, dest, http_user, http_pass, force):
 
         raise e
 
+# query nexus for the md5sum of an artifact
+def get_remote_md5(nexus, artifactory, url, http_user, http_pass):
+    if artifactory:
+        result = 'unsupported'
+        return result
+    try:
+        headers = {}
+        if http_user and http_pass:
+            headers['Authorization'] = "Basic %s" % \
+                base64.encodestring('%s:%s' %
+                                    (http_user, http_pass)).replace('\n', '')
+        md5_url = url + '.md5'
+        request = urllib2.Request(url, None, headers)
+        response = urllib2.urlopen(request)
 
+        result = response.read()
+
+        return result
+
+    except Exception as e:
+        # In case of error, let ansible stop the playbook
+        result['failed'] = True
+        result['msg'] = "Unknown error"
+        if hasattr(e, "code"):
+            result['code'] = e.code
+            if hasattr(e, "reason"):
+                result['msg'] = e.reason
+            else:
+                result['msg'] = "The server couldn\'t fulfill the request."
+
+            return result
+
+        raise e
+
+
+# query nexus or artifactory for version number of an artifact
+# if latest is specified return the latest version of an artifact
 def get_version(nexus, artifactory, url, version_to_find, http_user, http_pass):
     result = dict(url=url, http_user=http_user)
     if "SNAPSHOT" in version_to_find:
@@ -182,6 +218,19 @@ def get_version(nexus, artifactory, url, version_to_find, http_user, http_pass):
 
         raise e
 
+import hashlib
+import os.path
+def md5(fname):
+    hash_md5 = hashlib.md5()
+
+    if os.path.isfile(fname):
+        with open(fname, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+    else:
+        md5_result = 'no file'
+        return md5_result
 
 def main():
 
@@ -279,8 +328,40 @@ def main():
 
     dest = destdir + "/" + filename
 
-    # Try to load artifact from storage
-    result = loadArtifact(url, dest, http_user, http_pass, force)
+    if artifactory:
+        md5_url = 'unknown'
+    if nexus:
+        md5_url = nexus + "/service/local/repositories/" + repository + "/content/" + groupId.replace(".", "/") + "/" \
+                  + artifactId + "/" + version + "/" + artifactId + '-' + version + "." + extension + ".md5"
+
+    local_md5 = md5(dest)
+
+    remote_md5 = get_remote_md5(
+            nexus,
+            artifactory,
+            md5_url,
+            http_user,
+            http_pass
+        )
+
+    remote_md5_different = False
+
+    if str(remote_md5) == str(local_md5):
+        module.exit_json(
+            dest=dest,
+            remote_md5=remote_md5,
+            local_md5=local_md5,
+            md5match=True,
+            filename=filename,
+            artifactId=artifactId,
+            changed=False
+        )
+    else:
+        remote_md5_different = True
+
+
+    # Try to download an artifact from nexus or artifactory
+    result = loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different)
 
     if result['failed']:
         module.fail_json(
@@ -290,6 +371,7 @@ def main():
             filename=filename,
             dest=dest,
             repository=repository,
+            remote_md5_different=remote_md5_different,
             changed=result['changed'],
             msg=result['msg'],
             result=result
@@ -298,6 +380,9 @@ def main():
     module.exit_json(
         dest=dest,
         filename=filename,
+        remote_md5=remote_md5,
+        local_md5=local_md5,
+        remote_md5_different=remote_md5_different,
         artifactId=artifactId,
         changed=result['changed']
     )
