@@ -89,12 +89,33 @@ def main():
 
 Caveat is that once the basic auth defaults are set you must unset them with blank values to use some public repositories.
 
-# Download validation and md5 checks
+# Download / change validation and md5 checks
 
-Currently only the timestamp of the file is used to validate whether to run the download task. This should be changed to leverage the md5 checking built into Nexus.
+2 methods of validation are supported for testing whether to download an artifact:-
 
-This can be grabbed by making a HEAD request to the nexus for :-
+1. If timestamp of local file is older than last modified date of the remote artifact
+2. If md5 of the file is different from the md5 of the remote file (Nexus only)
+
+Md5 takes precidence if it's available as this method is more robust and allows downgrades as well as upgrades
+
+# Chaining actions when an artifact is downloaded
+
+To perform actions only when a new artifact is downloaded use this stanza:-
+
 ```
-http://blar.com/service/local/repositories/<repository>/content/<groupid>/<artifact>/<version>/<artifact>-<version>.<type>.md5
+- name: get statistics jar
+  nexus:
+    artifactory: http://artifactory.vpro.nl
+    artifactId: nl.vpro.stats:stats-backend:0.3-SNAPSHOT
+    extension: jar
+    http_user: wibble
+    http_pass: wibble
+  register: nexus_download
+
+- name: copy artifact to final location
+  copy:
+    dest: /tmp/final/blar.jar
+    src: "{{ nexus_download.dest }}"
+  when: nexus_download.changed
 ```
 
