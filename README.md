@@ -81,7 +81,7 @@ def main():
             filename=dict(required=False, default=None),
             artifactId=dict(required=True),
             extension=dict(required=False, default="war"),
-            force=dict(required=False, default=False, choices=BOOLEANS, type='bool'),
+            force=dict(required=False, default=False, type='bool'),
             http_user=dict(required=False, default="wibble"),
             http_pass=dict(required=False, default="wibble")
 ...
@@ -96,7 +96,7 @@ Caveat is that once the basic auth defaults are set you must unset them with bla
 1. If timestamp of local file is older than last modified date of the remote artifact
 2. If md5 of the file is different from the md5 of the remote file (Nexus only)
 
-Md5 takes precidence if it's available as this method is more robust and allows downgrades as well as upgrades
+Md5 takes precedence if it's available as this method is more robust and allows downgrades as well as upgrades
 
 # Chaining actions when an artifact is downloaded
 
@@ -118,4 +118,3 @@ To perform actions only when a new artifact is downloaded use this stanza:-
     src: "{{ nexus_download.dest }}"
   when: nexus_download.changed
 ```
-
