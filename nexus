@@ -71,6 +71,7 @@ EXAMPLES = '''
 '''
 
 from ansible.module_utils.basic import *
+from ansible.module_utils.parsing.convert_bool import *
 import urllib2
 import base64
 from datetime import datetime
