@@ -246,7 +246,7 @@ def main():
             extension=dict(required=False, default="war"),
             force=dict(required=False, default=False, choices=BOOLEANS, type='bool'),
             http_user=dict(required=False),
-            http_pass=dict(required=False)
+            http_pass=dict(required=False, no_log=True)
         ),
         supports_check_mode=False
     )

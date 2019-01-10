@@ -44,7 +44,7 @@ Place 'nexus' in 'library/nexus' next to your ansible script.
 ```
 - name: Download costello locally
   local_action: >
-      nexus nexus=https://oss.sonatype.org/ artifactId=abbot:costello:latest extension=jar repository=public http_user= http_pass=
+      nexus artifactory=https://oss.sonatype.org/ artifactId=abbot:costello:latest extension=jar repository=public http_user= http_pass=
   register: download
 
 - debug: msg="{{download.dest}}"
