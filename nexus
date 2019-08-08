@@ -78,6 +78,7 @@ from datetime import datetime
 from wsgiref.handlers import format_date_time
 import xml.etree.ElementTree as ET
 
+
 # download an artifact from nexus or artifactory
 def loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different):
 
@@ -89,9 +90,9 @@ def loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different):
         # Support if modified header if not using 'force' flag or if md5 is detected as different from remote
         # to always download artifacts
         if os.path.isfile(dest) and not force and not remote_md5_different:
-             headers['IF-Modified-Since'] = \
-                 format_date_time(time.mktime(datetime.fromtimestamp(
-                     os.path.getmtime(dest)).timetuple()))
+            headers['IF-Modified-Since'] = \
+                format_date_time(time.mktime(datetime.fromtimestamp(
+                    os.path.getmtime(dest)).timetuple()))
 
         if http_user and http_pass:
             headers['Authorization'] = "Basic %s" % \
@@ -133,6 +134,7 @@ def loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different):
             return result
 
         raise e
+
 
 # query nexus for the md5sum of an artifact
 def get_remote_md5(nexus, artifactory, url, http_user, http_pass):
@@ -201,8 +203,8 @@ def get_version(nexus, artifactory, url, version_to_find, http_user, http_pass):
 
         # http://articles.javatalks.ru/articles/32
         if nexus:
-          for latest in root.findall('./versioning/versions/version[last()]'):
-            return latest.text
+            for latest in root.findall('./versioning/versions/version[last()]'):
+                return latest.text
 
     except Exception as e:
         # In case of error, let ansible stop the playbook
@@ -219,8 +221,11 @@ def get_version(nexus, artifactory, url, version_to_find, http_user, http_pass):
 
         raise e
 
+
 import hashlib
 import os.path
+
+
 def md5(fname):
     hash_md5 = hashlib.md5()
 
@@ -233,6 +238,7 @@ def md5(fname):
         md5_result = 'no file'
         return md5_result
 
+
 def main():
 
     module = AnsibleModule(
@@ -244,7 +250,7 @@ def main():
             filename=dict(required=False, default=None),
             artifactId=dict(required=True),
             extension=dict(required=False, default="war"),
-            force=dict(required=False, default=False, choices=BOOLEANS, type='bool'),
+            force=dict(required=False, default=False, type='bool'),
             http_user=dict(required=False),
             http_pass=dict(required=False, no_log=True)
         ),
@@ -285,7 +291,6 @@ def main():
 
         if nexus:
             artifact_url = nexus + "/service/local/repositories/" + repository + "/content/" + groupId.replace(".", "/") + "/" + artifactId
-
 
         version = get_version(
             nexus,
@@ -360,7 +365,6 @@ def main():
     else:
         remote_md5_different = True
 
-
     # Try to download an artifact from nexus or artifactory
     result = loadArtifact(url, dest, http_user, http_pass, force, remote_md5_different)
 
@@ -387,5 +391,6 @@ def main():
         artifactId=artifactId,
         changed=result['changed']
     )
+
 
 main()
